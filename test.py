@@ -1,6 +1,5 @@
 import cv2
 
-from typing import final
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
@@ -74,6 +73,8 @@ def get_converted_color_components(img, code):
     return store
 
 # Returns one image divided into four quadrants and each quadrant represents the images passed in order
+
+
 def get_stitched_images(original_img, c1, c2, c3):
 
     # Performing two horizontal concatenations and finally concatenating the two outputs
@@ -83,6 +84,7 @@ def get_stitched_images(original_img, c1, c2, c3):
 
     # Resizing the final image to fit the display window
     return image_resize(image=img_c1_c2_c3, width=1280, height=720)
+
 
 def display_image(img):
     cv2.namedWindow('Output', cv2.WINDOW_NORMAL)
@@ -107,6 +109,8 @@ def get_green_screen_mask_HSV(img):
 
 # Displays a four quadrant image with the 1st quadrant being the original image
 # 2nd, 3rd and 4th quadrant correspond to each of the Color channels in the color image
+
+
 def image_resize(img):
     height, width = img.shape[:2]
     max_height = 480
@@ -116,7 +120,7 @@ def image_resize(img):
     if max_height < height or max_width < width:
         # get scaling factor
         scaling_factor = max_height / float(height)
-        
+
         if max_width/float(width) < scaling_factor:
             scaling_factor = max_width / float(width)
 
@@ -127,73 +131,31 @@ def image_resize(img):
 
 
 def task1(image):
+    image1 = cv2.imread(image)
+    image1 = image_resize(image1)
+    # Convert the training image to RGB
+    training_image = cv2.cvtColor(image1, cv2.COLOR_BGR2RGB)
 
-    print(image)
-    # Read the image from current directory
-    img = cv2.imread(image, cv2.IMREAD_GRAYSCALE)
+    # Convert the training image to gray scale
+    training_gray = cv2.cvtColor(training_image, cv2.COLOR_RGB2GRAY)
 
-    # Make a copy of the image
-    img_copy = np.copy(img)
-    img_copy = image_resize(img_copy)
-    #-- Step 1: Detect the keypoints using SURF Detector
-    minHessian = 400
-    detector = cv2.xfeatures2d_SURF.create(hessianThreshold=minHessian)
-    keypoints = detector.detect(img_copy)
-    print(len(keypoints))
-    #-- Draw keypoints
-    img_keypoints = np.empty((img_copy.shape[0], img_copy.shape[1], 3), dtype=np.uint8)
-    cv2.drawKeypoints(img_copy, keypoints, img_keypoints)
-    #-- Show detected (drawn) keypoints
-    cv2.imshow('SURF Keypoints', img_keypoints)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
-
-
-#     # Get color space conversion code
-#     code = get_code(color_space)
-
-#     # Store each color channel arrays into individual variables
-#     c1, c2, c3 = get_converted_color_components(img_copy, code)
-
-#     # Stitch the orginal image and corresponding color channels
-#     stitched_image = get_stitched_images(img_copy, c1, c2, c3)
-
-#     # Display the final output in a single viewing window
-#     display_image(stitched_image)
-
-# # Displays a four quadrant image where 1st quadrant -> Green screen image, 2nd quadrant -> Extracted persona with white background
-# # 3rd quadrant -> Scenic image , 4th quadrant -> Chroma Keyed image with a persona on the foreground and the scenic image as background
-
-
-def task2(green_screen, scenic_image):
-
-    # Read green screen and scenic images
-    green_screen_img = cv2.imread(green_screen)
-    scenic_img = cv2.imread(scenic_image)
-
-    # Make the green screen image have same dimension as scenic image
-    green_screen_img = get_same_shape_image(green_screen_img, scenic_img)
-
-    # Convert the two images to HSV color mapping
-    img = cv2.cvtColor(green_screen_img, cv2.COLOR_BGR2HSV)
-    img2 = cv2.cvtColor(scenic_img, cv2.COLOR_BGR2HSV)
-
-    # Generate a green screen mask
-    mask = get_green_screen_mask_HSV(img)
-
-    # Make green screen background white while preserving the persona
-    img[mask != 0] = [0, 0, 255]
-
-    # Make pixels corresponding the persona black to blend the persona
-    img2[mask == 0] = [0, 0, 0]
-
-    # Convert the two images back to BGR color space for proper viewing
-    img = cv2.cvtColor(img, cv2.COLOR_HSV2BGR)
-    img2 = cv2.cvtColor(img2, cv2.COLOR_HSV2BGR)
-
-    # Display the final output in a single viewing window
-    display_image(get_stitched_images(
-        green_screen_img, img, scenic_img, img+img2))
+    surf = cv2.xfeatures2d.SURF_create(800)
+    surf.setExtended(True)
+    train_keypoints, train_descriptor = surf.detectAndCompute(training_gray, None)
+    pts = cv2.KeyPoint_convert(train_keypoints)
+    for i in pts:
+        x,y = i
+        print(x, y)
+        break
+    # keypoints_without_size = np.copy(training_image)
+    # keypoints_with_size = np.copy(training_image)
+    # cv2.drawKeypoints(training_image, train_keypoints, keypoints_without_size, color = (0, 255, 0))
+    # cv2.drawKeypoints(training_image, train_keypoints, keypoints_with_size, flags = cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+    # keypoints_with_size = cv2.cvtColor(keypoints_with_size, cv2.COLOR_RGB2BGR)
+    # cv2.imshow('Output', keypoints_with_size)
+    # # cv2.imshow('Output', keypoints_without_size)
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
 
 
 if __name__ == '__main__':
