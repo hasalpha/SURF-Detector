@@ -131,34 +131,54 @@ def image_resize(img):
 
 
 def task1(image):
+    # Read in source image
     image1 = cv2.imread(image)
+
+    # Resize the source image to a VGA comparable format
     image1 = image_resize(image1)
-    print(image1.shape)
-    # # Convert the training image to RGB
-    # training_image = cv2.cvtColor(image1, cv2.COLOR_BGR2RGB)
 
-    # # Convert the training image to gray scale
-    # training_gray = cv2.cvtColor(training_image, cv2.COLOR_RGB2GRAY)
+    # Convert the training image to RGB
+    training_image = cv2.cvtColor(image1, cv2.COLOR_BGR2RGB)
 
-    # surf = cv2.xfeatures2d.SURF_create(1000)
-    # surf.setExtended(True)
-    # train_keypoints, train_descriptor = surf.detectAndCompute(training_gray, None)
-    # pts = cv2.KeyPoint_convert(train_keypoints)
-    # for i in pts:
-    #     x,y = i.astype(int)
-    #     cv2.line(training_image, (x-5, y), (x+5, y), 0, thickness=1)
-    #     cv2.line(training_image, (x, y-5), (x, y+5), 0, thickness=1)
-    # # keypoints_without_size = np.copy(training_image)
-    # keypoints_with_size = np.copy(training_image)
-    # # cv2.drawKeypoints(training_image, train_keypoints, keypoints_without_size, color = (0, 255, 0))
-    # cv2.drawKeypoints(training_image, train_keypoints, keypoints_with_size, flags = cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
-    # keypoints_with_size = cv2.cvtColor(keypoints_with_size, cv2.COLOR_RGB2BGR)
-    # print(len(train_keypoints))
-    # cv2.imshow('Output', keypoints_with_size)
-    # # training_image = cv2.cvtColor(training_image, cv2.COLOR_RGB2BGR)
-    # # cv2.imshow('Output', training_image)
-    # cv2.waitKey(0)
-    # cv2.destroyAllWindows()
+    # Convert the training image to gray scale
+    training_gray = cv2.cvtColor(training_image, cv2.COLOR_RGB2GRAY)
+
+    # Create the SURF detector with minimum hessian threshold set to 1000
+    surf = cv2.xfeatures2d.SURF_create(1000)
+
+    # Set 128-Dimensional computation for SURF
+    surf.setExtended(True)
+
+    # Detect and compute keypoints and descriptors for the keypoints
+    train_keypoints, train_descriptor = surf.detectAndCompute(
+        training_gray, None)
+
+    # Convert keypoints into numpy arrays
+    pts = cv2.KeyPoint_convert(train_keypoints)
+
+    # Extract coordinates from the numpy arrays and plot cross at the location
+    for i in pts:
+        x, y = i.astype(int)
+        cv2.line(training_image, (x-5, y), (x+5, y), 0, thickness=1)
+        cv2.line(training_image, (x, y-5), (x, y+5), 0, thickness=1)
+
+    # Create a copy of the image
+    keypoints_with_size = np.copy(training_image)
+
+    # Draw keypoints with orientation
+    cv2.drawKeypoints(training_image, train_keypoints, keypoints_with_size,
+                      flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+
+    # Convert image back to BGR colorspace
+    keypoints_with_size = cv2.cvtColor(keypoints_with_size, cv2.COLOR_RGB2BGR)
+
+    # Display number of keypoints detected in the image
+    print(f"# of keypoints detected: {len(train_keypoints)}")
+
+    # Display the image
+    cv2.imshow('Output', keypoints_with_size)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
 
 
 if __name__ == '__main__':
