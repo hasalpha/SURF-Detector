@@ -18,15 +18,11 @@ EXTS = ['.jpeg', '.jpg', '.jpe', '.bmp', '.dib', '.jp2',
 COLOR_SPACES = ['-XYZ', '-Lab', '-YCrCb', '-HSB']
 
 # Checks to see if provided arguments are of valid format
-
-
 def isValid(string, options):
     # Returns true if there is atleast one match in the options list
     return any(extension in string for extension in options)
 
 # Comprehensive input checks to invalidate any erroneous arguments passed to the program
-
-
 def validateArgs(args):
 
     number_of_images = len(args)
@@ -48,42 +44,14 @@ def validateArgs(args):
 
     return False
 
-# Returns cv2.COLOR_XXX code for any given color space.
-# Conversions are done using the default BGR channel that Opencv uses while reading an image
 
-
-def get_code(color_space):
-    if color_space == '-XYZ':
-        return cv2.COLOR_BGR2XYZ
-    elif color_space == '-Lab':
-        return cv2.COLOR_BGR2Lab
-    elif color_space == '-YCrCb':
-        return cv2.COLOR_BGR2YCrCb
-    elif color_space == '-HSB':
-        return cv2.COLOR_BGR2HSV
-
-# Returns a list of numpy arrays corresponding to Blue, Green and Red channels of the image
-
-
-def get_converted_color_components(img, code):
-    img = cv2.cvtColor(img, code)
-    store = []
-    for i in [img[:, :, 0], img[:, :, 1], img[:, :, 2]]:
-        store += [cv2.cvtColor(i, cv2.COLOR_GRAY2BGR)]
-    return store
-
-# Returns one image divided into four quadrants and each quadrant represents the images passed in order
-
-
-def get_stitched_images(original_img, c1, c2, c3):
+def get_stitched_horizontal_images(original_img, c1):
 
     # Performing two horizontal concatenations and finally concatenating the two outputs
     img_c1 = cv2.hconcat([original_img, c1])
-    c2_c3 = cv2.hconcat([c2, c3])
-    img_c1_c2_c3 = cv2.vconcat([img_c1, c2_c3])
 
     # Resizing the final image to fit the display window
-    return image_resize(image=img_c1_c2_c3, width=1280, height=720)
+    return img_c1
 
 
 def display_image(img):
@@ -93,90 +61,76 @@ def display_image(img):
     cv2.waitKey(0)
     cv2.destroyAllWindows()
 
-# Makes the source image have same dimensions as destination image
 
-
-def get_same_shape_image(src, dst):
-    width, height = dst.shape[:2]
-    src = image_resize(src, width, height)
-    return cv2.resize(src, (height, width))
-
-# Returns a Green Screen mask of a high enough range using HSV color values
-
-
-def get_green_screen_mask_HSV(img):
-    return cv2.inRange(img, np.array([50, 100, 80]), np.array([90, 255, 255]))
-
-# Displays a four quadrant image with the 1st quadrant being the original image
-# 2nd, 3rd and 4th quadrant correspond to each of the Color channels in the color image
-
-
-def image_resize(img):
+def image_resize_VGA(img):
     height, width = img.shape[:2]
     max_height = 480
     max_width = 600
 
-    # only shrink if img is bigger than required
+    # Only shrink if image is bigger than maximum dimensions
     if max_height < height or max_width < width:
-        # get scaling factor
-        scaling_factor = max_height / float(height)
 
+        # Determine scaling factor
+        scaling_factor = max_height / float(height)
         if max_width/float(width) < scaling_factor:
             scaling_factor = max_width / float(width)
 
-        # resize image
+        # Resize image
         img = cv2.resize(img, None, fx=scaling_factor,
                          fy=scaling_factor, interpolation=cv2.INTER_AREA)
     return img
 
 
-def task1(image):
-    # Read in source image
-    image1 = cv2.imread(image)
-
-    # Resize the source image to a VGA comparable format
-    image1 = image_resize(image1)
-
-    # Convert the training image to RGB
-    training_image = cv2.cvtColor(image1, cv2.COLOR_BGR2RGB)
-
-    # Convert the training image to gray scale
-    training_gray = cv2.cvtColor(training_image, cv2.COLOR_RGB2GRAY)
-
-    # Create the SURF detector with minimum hessian threshold set to 1000
-    surf = cv2.xfeatures2d.SURF_create(1000)
-
-    # Set 128-Dimensional computation for SURF
-    surf.setExtended(True)
-
-    # Detect and compute keypoints and descriptors for the keypoints
-    train_keypoints, train_descriptor = surf.detectAndCompute(
-        training_gray, None)
+def plot_cross(pts, image):
 
     # Convert keypoints into numpy arrays
-    pts = cv2.KeyPoint_convert(train_keypoints)
+    pts = cv2.KeyPoint_convert(pts)
 
     # Extract coordinates from the numpy arrays and plot cross at the location
     for i in pts:
         x, y = i.astype(int)
-        cv2.line(training_image, (x-5, y), (x+5, y), 0, thickness=1)
-        cv2.line(training_image, (x, y-5), (x, y+5), 0, thickness=1)
+        cv2.line(image, (x-5, y), (x+5, y), 0, thickness=1)
+        cv2.line(image, (x, y-5), (x, y+5), 0, thickness=1)
+    return image
 
-    # Create a copy of the image
-    keypoints_with_size = np.copy(training_image)
+
+def task1(image):
+
+    # Read in source image
+    image = cv2.imread(image)
+
+    # Resize the source image to a VGA comparable format
+    image = image_resize_VGA(image)
+
+    # Convert the training image to YCrCb
+    training_image = cv2.cvtColor(image, cv2.COLOR_BGR2YCrCb)
+
+    # Get the Y component of the image corresponding to luminance
+    luminance_component = training_image[:, :, 0]
+
+    # Create the SURF detector with minimum hessian threshold set to 1000
+    surf = cv2.xfeatures2d.SURF_create(800)
+
+    # Use 128-Dimensional computation for SURF
+    surf.setExtended(True)
+
+    # Detect and compute keypoints and descriptors from the luminance Component
+    train_keypoints, train_descriptor = surf.detectAndCompute(
+        luminance_component, None)
+
+    # Plot cross at key points
+    cross_plotted_image = plot_cross(train_keypoints, np.copy(image))
 
     # Draw keypoints with orientation
-    cv2.drawKeypoints(training_image, train_keypoints, keypoints_with_size,
+    cv2.drawKeypoints(cross_plotted_image, train_keypoints, cross_plotted_image,
                       flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
 
-    # Convert image back to BGR colorspace
-    keypoints_with_size = cv2.cvtColor(keypoints_with_size, cv2.COLOR_RGB2BGR)
-
-    # Display number of keypoints detected in the image
+    # Print number of keypoints detected in the image
     print(f"# of keypoints detected: {len(train_keypoints)}")
 
-    # Display the image
-    cv2.imshow('Output', keypoints_with_size)
+    # Display the original image and keypoint drawn image
+    cv2.imshow('Output', get_stitched_horizontal_images(
+        image, cross_plotted_image))
     cv2.waitKey(0)
     cv2.destroyAllWindows()
 
