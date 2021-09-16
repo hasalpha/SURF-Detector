@@ -18,11 +18,15 @@ EXTS = ['.jpeg', '.jpg', '.jpe', '.bmp', '.dib', '.jp2',
 COLOR_SPACES = ['-XYZ', '-Lab', '-YCrCb', '-HSB']
 
 # Checks to see if provided arguments are of valid format
+
+
 def isValid(string, options):
     # Returns true if there is atleast one match in the options list
     return any(extension in string for extension in options)
 
 # Comprehensive input checks to invalidate any erroneous arguments passed to the program
+
+
 def validateArgs(args):
 
     number_of_images = len(args)
@@ -33,11 +37,11 @@ def validateArgs(args):
     for i in range(number_of_images):
 
         # Ensures if the passed 1st argument exists or not
-        assert isfile(args[i]), f"{i}th arg does not exist"
+        assert isfile(args[i]), f"{i+1}th arg does not exist"
 
         # Ensures format compliance of image files
         assert isValid(
-            args[i].lower(), EXTS), f"{i}th arg should be one of {'|'.join(EXTS)}."
+            args[i].lower(), EXTS), f"{i+1}th arg should be one of {'|'.join(EXTS)}."
 
     if number_of_images == 1:
         return True
@@ -95,7 +99,7 @@ def plot_cross(pts, image):
 
 
 def task1(image):
-
+    img_name = image
     # Read in source image
     image = cv2.imread(image)
 
@@ -126,7 +130,7 @@ def task1(image):
                       flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
 
     # Print number of keypoints detected in the image
-    print(f"# of keypoints detected: {len(train_keypoints)}")
+    print(f"# of keypoints in {img_name} is {len(train_keypoints)}")
 
     # Display the original image and keypoint drawn image
     cv2.imshow('Output', get_stitched_horizontal_images(
@@ -135,9 +139,77 @@ def task1(image):
     cv2.destroyAllWindows()
 
 
+def normalize(x):
+    min = np.min(x)
+    max = np.max(x)
+    range = max - min
+    return [(a - min) / range for a in x]
+
+
+def task2(images):
+    dictionarySize = len(images)
+    # Create the SURF detector with minimum hessian threshold set to 1000
+    surf = cv2.xfeatures2d.SURF_create(1000)
+    total = 0
+    descriptions = []
+    image_array = []
+    # K size 5% 10% 15%
+    kSizes = [5, 10, 15]
+    for image in images:
+        img_name = image
+        image = cv2.imread(image)
+        image = image_resize_VGA(image)
+        rgbimage = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        yCrCbimage = cv2.cvtColor(image, cv2.COLOR_BGR2YCrCb)
+        luminanceImage = yCrCbimage[:, :, 0]
+        # Compute surf descriptor and keypoints for Y Channel image
+        kp, dsc = surf.detectAndCompute(luminanceImage, None)
+        image_array.append((rgbimage, dsc))
+        print('# of keypoints in {} is {}'.format(img_name, len(kp)))
+        descriptions.append(dsc)
+        total += len(kp)
+
+    for k in kSizes:
+        KSize = int(k / 100 * total)
+        print('K = {}% of {} = {}'.format(k, total, KSize))
+        print('Dissimilarity Matrix')
+        # create BOW from Kmeans (k size)
+        BOW = cv2.BOWKMeansTrainer(KSize)
+        for dsc in descriptions:
+            BOW.add(dsc)
+        vocabulary = BOW.cluster()
+        matcher = cv2.FlannBasedMatcher_create()
+        matcher.add(vocabulary)
+        matcher.train()
+        # calculate histrogram from image_array
+        histograms = []
+        for img in image_array:
+            result = np.zeros((KSize, 1), np.float32)
+            matches = matcher.match(np.float32(img[1]), vocabulary)
+            for match in matches:
+                visual_word = match.trainIdx
+                result[visual_word] += 1
+            histograms.append(result.ravel())
+        # Normalize histogram
+        normalizedHistogram = normalize(np.array(histograms))
+        table = []
+        # Comparing two histograms using Chi-Square
+        for i in normalizedHistogram:
+            list = []
+            for j in normalizedHistogram:
+                a = cv2.compareHist(i, j, cv2.HISTCMP_CHISQR)
+                list.append(a)
+            table.append(list)
+        # Print the result
+        format_row = "{:>20}" * (len(images) + 1)
+        print(format_row.format("", *images))
+        for team, row in zip(images, table):
+            print(format_row.format(team, *row))
+
+
 if __name__ == '__main__':
     args = sys.argv[1:]
     if validateArgs(args):
         task1(args[0])
     else:
-        print('task2')
+        task2(args[:])
