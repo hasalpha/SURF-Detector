@@ -14,9 +14,6 @@ EXTS = ['.jpeg', '.jpg', '.jpe', '.bmp', '.dib', '.jp2',
         '.pfm', '.sr', '.ras', '.tiff', '.tif', '.exr',
         '.hdr', '.pic']
 
-# Color spaces options as per assignment specifications
-COLOR_SPACES = ['-XYZ', '-Lab', '-YCrCb', '-HSB']
-
 # Checks to see if provided arguments are of valid format
 
 
@@ -48,6 +45,8 @@ def validateArgs(args):
 
     return False
 
+# Returns two images of same size stitched horizontally
+
 
 def get_stitched_horizontal_images(original_img, c1):
 
@@ -56,14 +55,6 @@ def get_stitched_horizontal_images(original_img, c1):
 
     # Resizing the final image to fit the display window
     return img_c1
-
-
-def display_image(img):
-    cv2.namedWindow('Output', cv2.WINDOW_NORMAL)
-    cv2.resizeWindow('Output', 1280, 720)
-    cv2.imshow('Output', img)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
 
 
 def image_resize_VGA(img):
@@ -99,7 +90,7 @@ def plot_cross(pts, image):
 
 
 def task1(image):
-    img_name = image
+    image_name = image
     # Read in source image
     image = cv2.imread(image)
 
@@ -130,7 +121,7 @@ def task1(image):
                       flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
 
     # Print number of keypoints detected in the image
-    print(f"# of keypoints in {img_name} is {len(train_keypoints)}")
+    print(f"# of keypoints in {image_name} is {len(train_keypoints)}")
 
     # Display the original image and keypoint drawn image
     cv2.imshow('Output', get_stitched_horizontal_images(
@@ -139,6 +130,7 @@ def task1(image):
     cv2.destroyAllWindows()
 
 
+# Return normalized histogram as output
 def normalize(x):
     min = np.min(x)
     max = np.max(x)
@@ -147,64 +139,107 @@ def normalize(x):
 
 
 def task2(images):
-    dictionarySize = len(images)
     # Create the SURF detector with minimum hessian threshold set to 1000
     surf = cv2.xfeatures2d.SURF_create(1000)
+
+    # Local variables to create and store image keypoints and descriptors
     total = 0
     descriptions = []
     image_array = []
-    # K size 5% 10% 15%
-    kSizes = [5, 10, 15]
+
+    # K sizes corresponding to 5%, 10% & 15%
+    k_sizes_array = [5, 10, 15]
+
+    # Store descriptors and keypoints of images in aforementioned local variables
     for image in images:
-        img_name = image
+
+        # Store image name for printing purpose
+        image_name = image
+
+        # Read and Resize the image to a VGA comparable format
         image = cv2.imread(image)
         image = image_resize_VGA(image)
-        rgbimage = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        yCrCbimage = cv2.cvtColor(image, cv2.COLOR_BGR2YCrCb)
-        luminanceImage = yCrCbimage[:, :, 0]
+
+        # Convert image from BGR to RGB color space
+        rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+        # Convert image from BGR to YCrCb color space
+        yCrCb_image = cv2.cvtColor(image, cv2.COLOR_BGR2YCrCb)
+
+        # Extract the luminance component from the image
+        y_component = yCrCb_image[:, :, 0]
+
         # Compute surf descriptor and keypoints for Y Channel image
-        kp, dsc = surf.detectAndCompute(luminanceImage, None)
-        image_array.append((rgbimage, dsc))
-        print('# of keypoints in {} is {}'.format(img_name, len(kp)))
+        kp, dsc = surf.detectAndCompute(y_component, None)
+
+        # Append the RGB image and its corresponding image descriptor as a tuple to the image array
+        image_array.append((rgb_image, dsc))
+
+        # Print number of keypoints present in each image
+        print(f'# of keypoints in {image_name} is {len(kp)}')
+
+        # Add the descriptor of current image to the descriptions array
         descriptions.append(dsc)
+
+        # Sum total keypoints
         total += len(kp)
 
-    for k in kSizes:
-        KSize = int(k / 100 * total)
-        print('K = {}% of {} = {}'.format(k, total, KSize))
-        print('Dissimilarity Matrix')
-        # create BOW from Kmeans (k size)
-        BOW = cv2.BOWKMeansTrainer(KSize)
-        for dsc in descriptions:
-            BOW.add(dsc)
+    # Iterate for all K sizes
+    for k in k_sizes_array:
+
+        # Determine overall K size based on total keypoints
+        k_size = int(k / 100 * total)
+
+        # Create the bag-of-words object from Kmeans (k size)
+        BOW = cv2.BOWKMeansTrainer(k_size)
+
+        # Add descriptions into the BOW
+        for description in descriptions:
+            BOW.add(description)
+
+        # Create the matcher object and train it with the provided vocabulary
         vocabulary = BOW.cluster()
         matcher = cv2.FlannBasedMatcher_create()
         matcher.add(vocabulary)
         matcher.train()
-        # calculate histrogram from image_array
-        histograms = []
+
+        # Deduce image_histograms from the image_array
+        image_histograms = []
         for img in image_array:
-            result = np.zeros((KSize, 1), np.float32)
+
+            # Create a numpy array of k_size and 1 dimensions and fill it 0.0
+            result = np.zeros((k_size, 1), np.float32)
+
+            # Identify all matches based on vocabulary
             matches = matcher.match(np.float32(img[1]), vocabulary)
+
+            # Set all values at determined indices to 1
             for match in matches:
-                visual_word = match.trainIdx
-                result[visual_word] += 1
-            histograms.append(result.ravel())
-        # Normalize histogram
-        normalizedHistogram = normalize(np.array(histograms))
-        table = []
-        # Comparing two histograms using Chi-Square
-        for i in normalizedHistogram:
-            list = []
-            for j in normalizedHistogram:
-                a = cv2.compareHist(i, j, cv2.HISTCMP_CHISQR)
-                list.append(a)
-            table.append(list)
-        # Print the result
-        format_row = "{:>20}" * (len(images) + 1)
-        print(format_row.format("", *images))
-        for team, row in zip(images, table):
-            print(format_row.format(team, *row))
+                word = match.trainIdx
+                result[word] += 1
+
+            # Append a flattened version of the result array
+            image_histograms.append(result.ravel())
+
+        # Normalize the obtained histogram
+        normalized_histogram = normalize(np.array(image_histograms))
+        grid = []
+
+        # Compare image_histograms using Chi Square comparison method
+        for row in normalized_histogram:
+            storage = []
+            for column in normalized_histogram:
+                result = cv2.compareHist(row, column, cv2.HISTCMP_CHISQR)
+                storage.append(result)
+            grid.append(storage)
+
+        # Printing the output in a human-readable format
+        print(f'K = {k}% of {total} = {k_size}')
+        print('Dissimilarity Matrix')
+        print_row = "{:>20}" * (len(images) + 1)
+        print(print_row.format("", *images))
+        for team, row in zip(images, grid):
+            print(print_row.format(team, *row))
 
 
 if __name__ == '__main__':
